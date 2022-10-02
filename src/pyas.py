@@ -1,22 +1,65 @@
-import re
+import types
 
 class Helpers:
-    
+
+    @staticmethod
+    def isProperty(obj, attr):
+        return isinstance(getattr(type(obj), attr, None), property)
+        
+    @classmethod
+    def transform(cls, this, attr, blacklist=None):
+        blacklist = blacklist if blacklist is not None else []
+        
+        prototypes = [this.__class__] + (this.prototypes if hasattr(this, 'prototypes') else []) 
+        T = None
+        prototype = None
+        for prototype in prototypes:
+            prototype = prototype(this.row)
+
+            if prototype in blacklist:
+                continue
+            blacklist.append(id(prototype))
+            
+            T = prototype.getTransformer(attr)
+
+            if T is not None:
+                break
+
+        T = T if T is not None else lambda v, *args: v
+        prototype = prototype if prototype is not None else this
+        row = prototype.row
+                
+        return T(row[attr] if attr in row else None, attr, this.row)
+
+    @classmethod
+    def attribute(cls, this, attr, blacklist=None):
+        blacklist = blacklist if blacklist is not None else [this]
+
+        prototypes = this.prototypes if hasattr(this, 'prototypes') else [] 
+        for prototype in prototypes:
+            prototype = prototype(this.row)
+            
+            if prototype in blacklist:
+                continue
+            blacklist.append(prototype)
+
+            if hasattr(prototype, attr):
+                if Helpers.isProperty(prototype, attr):
+                    prop = getattr(type(prototype), attr)
+                    print(attr, prop.fget)
+                val = getattr(prototype, attr)
+                if (callable(val)):
+                    val = types.MethodType(val.__func__, this)
+                return val
+
+        raise AttributeError('{} is missing'.format(attr))
+
+        
     @staticmethod
     def eval(f, *args, **kwargs):
         if callable(f):
             return f(*args, **kwargs)
         return f
-    
-    @classmethod
-    def treePick(cls, inst, keys):
-        #print('treePick', repr(inst), keys)
-
-        item = inst[keys[0]]
-        if len(keys) <= 1:
-            return item
-        return cls.treePick(item, keys[1:])
-    
 
     @staticmethod
     def iterate(inst):
@@ -36,7 +79,34 @@ class Helpers:
             pass
 
         return {None: inst}.items()
+
+def createCache():
+
+    cache = {}
+
+    class Cache():
+
+        @staticmethod
+        def cacheKey(cls, row, prototypes):
+            key = id(cls.__name__) + id(row)
+            for p in prototypes:
+                key += id(p)
+            return key
+        
+        @classmethod
+        def getCachedAs(cls, cacheKey):
+            return cache.get(cacheKey, None)
+
+        @classmethod
+        def setCachedAs(cls, cacheKey, model):
+            assert cls.getCachedAs(cacheKey) is None
+            cache[cacheKey] = model 
+
+    return Cache()
     
+
+
+
 class As():
 
     @staticmethod
@@ -46,53 +116,37 @@ class As():
             return f(*args[0:argCount])
         
         return helper
-    @classmethod
-    def createFactory(cls):
-
-        def _(row, *args, **kwargs):
-            if isinstance(row, cls):
-                return row
-            return cls(row, *args, **kwargs)
-        return _
-        
-    columnSpecs = {
-    }
     
-    cache = {}
-    @classmethod
-    def cacheKey(cls, row):
-        return cls, id(row)
-    @classmethod
-    def getCachedAs(cls, row):
-        return cls.cache.get((cls, id(row)), None)
-    @classmethod
-    def setCachedAs(cls, row, model):
-        assert cls.getCachedAs(row) is None
-        cls.cache[cls.cacheKey(row)] = model 
+    columnSpecs = {}
+    prototypes = []
+    
+    cache = createCache()
 
+    @classmethod
+    def cacheKey(cls, row, prototypes): 
+        return cls.cache.cacheKey(cls, row, prototypes)
     
     @classmethod
-    def create(cls, row, *args, **kwargs):
+    def create(cls, row: dict={}, prototypes: list=[]):
+        return cls(row, prototypes)
+
+    def __new__(cls, row: dict={}, prototypes: list=[]):
         if (isinstance(row, cls)):
-            return row
-
-        cachee = cls.getCachedAs(row)
-        if cachee is not None:
-            #print('Using cached model for:', row)
-            return cachee
-        return cls(row, *args, **kwargs)
-
-    def __init__(self, row={}, columnSpecs=None):
-
-        assert self.getCachedAs(row) is None
-
-        if columnSpecs is not None:
-            self.columnSpecs = columnSpecs
-
-        self.row = row
-        self.setCachedAs(row, self)
-        #print('Caching model for:', row)
+            return cls.__new__(cls, row.row, prototypes)
         
+        cacheKey = cls.cacheKey(row, prototypes + cls.prototypes)
+        cachee = cls.cache.getCachedAs(cacheKey)
+        if cachee is not None:
+            return cachee
+
+        res = super().__new__(cls)
+        
+        res.row = row
+        res.prototypes = prototypes + cls.prototypes
+        cls.cache.setCachedAs(cacheKey, res)
+ 
+        return res
+    
     def __str__(self, indent=''):
         return '{}({})'.format(indent, str(self.row))
 
@@ -121,11 +175,13 @@ class As():
 
         return Iter(self, 0)
 
+    def __getattr__(self, attr):
+        return Helpers.attribute(self, attr)
+    
     def __getitem__(self, attr):
-        if isinstance(attr, (tuple, list)):
-            return Helpers.treePick(self, tuple(attr))
         try:
-            textVal = self.row[attr] if attr in self.row else None
+            return Helpers.transform(self, attr)
+        
         except Exception as e:
             print('\n-----------------')
             for key,val in Helpers.iterate(self.row):
@@ -133,8 +189,6 @@ class As():
             print(attr)
             print('-----------------')
             raise e
-        
-        return self._transform(attr, textVal)
 
     def __setitem__(self, key, val):
         self.row[key] = val
@@ -142,62 +196,19 @@ class As():
     def __len__(self):
         return len(self.row)
 
-    def _transformer(self, column):
-        cs = self.columnSpecs
-        if cs:
-            cs = cs[column] if column in cs else None
-            if cs:
-                cs = cs['T'] if 'T' in cs else None
-                if cs:
-                    return cs
+    def getTransformer(self, column):
 
-        cs = self.__class__.columnSpecs
-        if cs:
-            cs = cs[column] if column in cs else None
-            if cs:
-                cs = cs['T'] if 'T' in cs else None
-                if cs:
-                    return cs
-
-        return lambda val, *_, **__: val
+        def pick(columnSpecs, column):
+            if columnSpecs:
+                columnSpec = columnSpecs[column] if column in columnSpecs else None
+                if columnSpec:
+                    return columnSpec['transformer'] if 'transformer' in columnSpec else None
+            return None
+            
+        T = pick(self.__class__.columnSpecs, column)
+        return T
         
-    def _transform(self, attr, textVal):
-        transformer = self._transformer(attr)
-        return transformer(textVal, attr, self)
     
-    def _creator(self, column):
-        cs = self.columnSpecs
-        if cs:
-            cs = cs[column] if column in cs else None
-            if cs:
-                cs = cs['creator'] if 'creator' in cs else None
-                if cs:
-                    return cs
-
-        cs = self.__class__.columnSpecs
-        if cs:
-            cs = cs[column] if column in cs else None
-            if cs:
-                cs = cs['creator'] if 'creator' in cs else None
-                if cs:
-                    return cs
-
-        return lambda val, *_, **__: val
-        
-    def _create(self, key, val):
-        creator = self._creator(key)
-        return creator(val)
-
     def keys(self):
         return self.row.keys()
-
-    def match(self, attrRegExpMap={}, compile=False, casters=str):
-        for attr, regExp in attrRegExpMap.items():
-            if not attr in self.row:
-                return False
-            cre = re.compile(regExp) if compile else regExp
-            val = self[attr]
-            if not cre.match(Helpers.eval(casters, val) if casters is not None else val):
-                return False
-        return True
 
