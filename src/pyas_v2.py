@@ -1,5 +1,7 @@
 import itertools
 from collections import OrderedDict
+from xxhash import xxh64
+
 
 class Helpers:
 
@@ -38,10 +40,12 @@ class Helpers:
 
             @staticmethod
             def instanceCacheKey(cls, row, prototypes):
-                key = id(cls.__name__) + id(row)
+                key = xxh64()
+                key.update(cls.__name__)
+                key.update(str(id(row)))
                 for p in prototypes:
-                    key += id(p)
-                return key
+                    key.update(p.__name__)
+                return key.hexdigest()
 
             @staticmethod
             def classCacheKey(prototypes):
@@ -55,7 +59,12 @@ class Helpers:
                 return cache.get(cacheKey, None)
 
             @classmethod
+            def delCachedAs(cls, cacheKey):
+                del cache[cacheKey]
+
+            @classmethod
             def setCachedAs(cls, cacheKey, model):
+
                 assert cls.getCachedAs(cacheKey) is None
                 cache[cacheKey] = model
 
@@ -67,7 +76,7 @@ def As(*args, classBlacklist:list|tuple = ()):
     def buildClass(classlist: list | tuple):
         name = '_'.join(c.__name__ for c in classlist)
         newClass = type(name, tuple(classlist), {})
-        newClass.prototypes = _prototypes
+        newClass.prototypes = classlist
         return newClass
 
     _prototypes = list(OrderedDict.fromkeys(
@@ -120,6 +129,8 @@ class Root:
         instanceCacheKey = cachedClass.instanceCacheKey(row, cls.prototypes)
         cachedInstnace = Root.cache.getCachedAs(instanceCacheKey)
         if cachedInstnace is not None:
+            #assert instanceCacheKey == cachedClass.instanceCacheKey(
+            #        cachedInstnace.row, cachedInstnace.prototypes), 'Cache error!'
             return cachedInstnace
 
         instance = object.__new__(cachedClass)
