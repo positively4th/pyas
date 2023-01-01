@@ -119,12 +119,10 @@ class Root:
     def instanceCacheKey(cls, row, prototypes):
         return Root.cache.instanceCacheKey(cls, row, prototypes)
 
+    #Todo: Remove, super() is correct method!.
     @property
     def prototype(self):
-        if len(self.prototypes) < 1:
-            return None
-
-        return As(*self.prototypes[1:])(self.row)
+        return super()
 
     def __new__(cls, row: dict = {}):
 

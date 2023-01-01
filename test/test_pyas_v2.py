@@ -7,7 +7,7 @@ from src.pyas_v2 import Helpers
 
 class TestAs(unittest.TestCase):
 
-    def test_prototype(self):
+    def test_super(self):
 
         class Thing(Leaf):
 
@@ -25,13 +25,13 @@ class TestAs(unittest.TestCase):
             prototypes = []
 
             def describe(self):
-                return '{} painted in {}'.format(self.prototype.describe(), 'Red')
+                return '{} painted in {}'.format(super().describe(), 'Red')
 
         class StripedBlue(Leaf):
             prototypes = []
 
             def describe(self):
-                return '{} with {} stripes'.format(self.prototype.describe(), 'Blue')
+                return '{} with {} stripes'.format(super().describe(), 'Blue')
 
 
         exp = 'A house painted in Red with Blue stripes'
