@@ -7,6 +7,43 @@ from src.pyas_v2 import Helpers
 
 class TestAs(unittest.TestCase):
 
+    def test_prototype(self):
+
+        class Thing(Leaf):
+
+            columnSpecs = {
+                'name': {
+                    'transformer': lambda v, k, row: v if k in row else None
+                }
+            }
+
+            def describe(self):
+                return 'A {}'.format(self['name'])
+
+        class Red(Leaf):
+
+            prototypes = []
+
+            def describe(self):
+                return '{} painted in {}'.format(self.prototype.describe(), 'Red')
+
+        class StripedBlue(Leaf):
+            prototypes = []
+
+            def describe(self):
+                return '{} with {} stripes'.format(self.prototype.describe(), 'Blue')
+
+
+        exp = 'A house painted in Red with Blue stripes'
+        act = As(StripedBlue, Red, Thing)({ 'name': 'house'}).describe();
+        self.assertEqual(exp, act)
+        exp = 'A house painted in Red'
+        act = As(Red, Thing)({ 'name': 'house'}).describe();
+        self.assertEqual(exp, act)
+        exp = 'A house'
+        act = As(Thing)({ 'name': 'house'}).describe();
+        self.assertEqual(exp, act)
+
     def test_cache(self):
         class Testee(Leaf):
 
@@ -160,8 +197,7 @@ class TestAs(unittest.TestCase):
         self.assertEqual(lionee._tag, 'Animal Tag') #Car has no tag
             
     def testLegacy(self):
-        #__seitem__
-        
+
         class Identity(Leaf):
             pass
 

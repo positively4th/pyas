@@ -119,6 +119,13 @@ class Root:
     def instanceCacheKey(cls, row, prototypes):
         return Root.cache.instanceCacheKey(cls, row, prototypes)
 
+    @property
+    def prototype(self):
+        if len(self.prototypes) < 1:
+            return None
+
+        return As(*self.prototypes[1:])(self.row)
+
     def __new__(cls, row: dict = {}):
 
         if (isinstance(row, cls)):
@@ -126,6 +133,8 @@ class Root:
 
         cachedClassKey = Root.cache.classCacheKey(cls.prototypes)
         cachedClass = Root.cache.getCachedAs(cachedClassKey)
+        if cachedClass is None:
+            cachedClass = As(*cls.prototypes)
         instanceCacheKey = cachedClass.instanceCacheKey(row, cls.prototypes)
         cachedInstnace = Root.cache.getCachedAs(instanceCacheKey)
         if cachedInstnace is not None:
@@ -178,7 +187,6 @@ class Root:
         T = Root.getTransformer(attr, self.__class__.prototypes)
 
         T = (lambda val, *args: val) if T is None else T
-
         return T(self.row[attr] if attr in self.row else None, attr, self.row)
 
     def __setitem__(self, key, val):
