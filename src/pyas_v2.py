@@ -3,6 +3,21 @@ from collections import OrderedDict
 from xxhash import xxh64
 
 
+class T:
+
+    @staticmethod
+    def defWrapper(defVal, T0):
+        def T(val, key, row, *args, **kwargs):
+
+            if key not in row:
+                assert val is None
+                row[key] = defVal(val, key, row)
+                return row[key]
+            return T0(val, key, row, *args, **kwargs)
+
+        return T
+
+
 class Helpers:
 
     @staticmethod
@@ -125,6 +140,7 @@ class Root:
         return super()
 
     def __new__(cls, row: dict = {}):
+
 
         if (isinstance(row, cls)):
             return row
