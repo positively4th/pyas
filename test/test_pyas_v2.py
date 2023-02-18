@@ -7,6 +7,47 @@ from src.pyas_v2 import Helpers
 
 class TestAs(unittest.TestCase):
 
+    def test_implements(self):
+
+        class Red(Leaf):
+
+            prototypes = []
+
+            def describe(self):
+                return '{} painted in {}'.format(super().describe(), 'Red')
+
+        class Green(Leaf):
+
+            prototypes = []
+
+            def describe(self):
+                return '{} painted in {}'.format(super().describe(), 'Red')
+
+        class Blue(Leaf):
+            prototypes = []
+
+            def describe(self):
+                return '{} painted in {}'.format(super().describe(), 'Blue')
+
+        class Purple(Leaf):
+            prototypes = []
+
+            def describe(self):
+                return '{} painted in {}'.format(super().describe(), 'Purple')
+
+        class RGB(Leaf):
+            prototypes = [Red, Blue, Green]
+
+        self.assertTrue(As(RGB).implements(Red))
+        self.assertTrue(As(RGB).implements(Green))
+        self.assertTrue(As(RGB).implements(Blue))
+        self.assertFalse(As(RGB).implements(Purple))
+
+        self.assertTrue(As(Blue, Green, Red).implements(Red))
+        self.assertTrue(As(Blue, Green, Red).implements(Green))
+        self.assertTrue(As(Blue, Green, Red).implements(Blue))
+        self.assertFalse(As(Blue, Green, Red).implements(Purple))
+
     def test_super(self):
 
         class Thing(Leaf):

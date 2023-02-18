@@ -114,6 +114,10 @@ def As(*args, classBlacklist:list|tuple = ()):
 class Leaf:
     prototypes = []
 
+    @classmethod
+    def implements(cls, what):
+        return what in cls.prototypes
+
 
 class Root:
 
