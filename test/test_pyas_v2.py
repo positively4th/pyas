@@ -74,15 +74,14 @@ class TestAs(unittest.TestCase):
             def describe(self):
                 return '{} with {} stripes'.format(super().describe(), 'Blue')
 
-
         exp = 'A house painted in Red with Blue stripes'
-        act = As(StripedBlue, Red, Thing)({ 'name': 'house'}).describe();
+        act = As(StripedBlue, Red, Thing)({'name': 'house'}).describe()
         self.assertEqual(exp, act)
         exp = 'A house painted in Red'
-        act = As(Red, Thing)({ 'name': 'house'}).describe();
+        act = As(Red, Thing)({'name': 'house'}).describe()
         self.assertEqual(exp, act)
         exp = 'A house'
-        act = As(Thing)({ 'name': 'house'}).describe();
+        act = As(Thing)({'name': 'house'}).describe()
         self.assertEqual(exp, act)
 
     def test_cache(self):
@@ -96,9 +95,9 @@ class TestAs(unittest.TestCase):
                 cls.idInitCounter[di] = cls.idInitCounter[di] if di in cls.idInitCounter else 0
                 cls.idInitCounter[di] += 1
 
-        row1 = {'a':1 , 'b':10}
-        row2 = {'a':2 , 'b':20}
-        row23 = {'a':2 , 'b':20}
+        row1 = {'a': 1, 'b': 10}
+        row2 = {'a': 2, 'b': 20}
+        row23 = {'a': 2, 'b': 20}
 
         tm11 = As(Testee)(row1)
         tm12 = As(Testee)(row1)
@@ -124,15 +123,14 @@ class TestAs(unittest.TestCase):
         self.assertEqual(tm23['a'], 2)
         self.assertEqual(tm23['b'], 20)
 
-        row1['a'] *= -1 
+        row1['a'] *= -1
         self.assertEqual(tm11['a'], -1)
         self.assertEqual(tm12['a'], -1)
         self.assertEqual(tm21['a'], 2)
         self.assertEqual(tm22['a'], 2)
         self.assertEqual(tm23['a'], 2)
-       
 
-    def testPrototypes(self):
+    def test_prototypes(self):
         class Animal(Leaf):
             columnSpecs = {
                 'art': {
@@ -142,47 +140,55 @@ class TestAs(unittest.TestCase):
 
             @classmethod
             def onNew(cls, self):
-                self._tag = cls.__name__ + ' Tag';
+                self._tag = cls.__name__ + ' Tag'
+
             def getTag(self):
                 return self._tag
+
             @property
             def tag(self):
-                return self._tag;
-             
+                return self._tag
+
         class Vehicle(Leaf):
             columnSpecs = {
                 'brand': {
                     'transformer': lambda v, *args: 'Vehicle Brand: ' + str(v)
                 }
             }
+
             @classmethod
             def onNew(cls, self):
-                self._tag = cls.__name__ + ' Tag';
+                self._tag = cls.__name__ + ' Tag'
+
             def getTag(self):
                 return self._tag
+
             @property
             def tag(self):
-                return self._tag;
-            
+                return self._tag
+
         class MyVehicle(Leaf):
             columnSpecs = {
                 'brand': {
                     'transformer': lambda v, *args: 'My Vehicle Brand: ' + str(v)
                 }
             }
+
             @classmethod
             def onNew(cls, self):
-                self._tag = cls.__name__ + ' Tag';
+                self._tag = cls.__name__ + ' Tag'
+
             def getTag(self):
                 return self._tag
+
             @property
             def tag(self):
-                return self._tag;
-            
+                return self._tag
+
         class Car(Leaf):
             columnSpecs = {
                 'turbo': {
-                    'transformer': lambda v, *args: 'Car Turbo: ' + ('Yes' if bool(v) else 'No') }
+                    'transformer': lambda v, *args: 'Car Turbo: ' + ('Yes' if bool(v) else 'No')}
             }
 
         class Bike(Leaf):
@@ -191,53 +197,55 @@ class TestAs(unittest.TestCase):
                     'transformer': lambda v, *args: 'Bike Pedals: ' + str(v)
                 }
             }
+
             @classmethod
             def onNew(cls, self):
-                self._tag = cls.__name__ + ' Tag';
+                self._tag = cls.__name__ + ' Tag'
+
             def getTag(self):
                 return self._tag
+
             @property
             def tag(self):
-                return self._tag;
-            
-            
-        dbs = { 'brand': 'DBS', 'pedals': 'Twin Turbo'}
-        saab = { 'brand': 'SAAB', 'turbo': True}
-        kia = { 'brand': 'KIA', 'turbo': False}
-        lion = { 'art': 'Lion', 'turbo': True, 'pedals': 'Twin Turbo', 'brand': 'Nature'}
+                return self._tag
+
+        dbs = {'brand': 'DBS', 'pedals': 'Twin Turbo'}
+        saab = {'brand': 'SAAB', 'turbo': True}
+        kia = {'brand': 'KIA', 'turbo': False}
+        lion = {'art': 'Lion', 'turbo': True,
+                'pedals': 'Twin Turbo', 'brand': 'Nature'}
         saabee = As(Car, Vehicle)(saab)
         kiaee = As(Car, Vehicle)(kia)
         myKiaee = As(Car, MyVehicle)(kia)
         lionee = As(Animal, Vehicle)(lion)
-        
+
         self.assertEqual(saabee['brand'], 'Vehicle Brand: SAAB')
         self.assertEqual(saabee['turbo'], 'Car Turbo: Yes')
-        self.assertEqual(saabee.getTag(), 'Vehicle Tag') #Car has no tag
-        self.assertEqual(saabee.tag, 'Vehicle Tag') #Car has no tag
-        self.assertEqual(saabee._tag, 'Vehicle Tag') #Car has no tag
+        self.assertEqual(saabee.getTag(), 'Vehicle Tag')  # Car has no tag
+        self.assertEqual(saabee.tag, 'Vehicle Tag')  # Car has no tag
+        self.assertEqual(saabee._tag, 'Vehicle Tag')  # Car has no tag
 
         self.assertEqual(kiaee['brand'], 'Vehicle Brand: KIA')
         self.assertEqual(kiaee['turbo'], 'Car Turbo: No')
-        self.assertEqual(kiaee.getTag(), 'Vehicle Tag') #Car has no tag
-        self.assertEqual(kiaee.tag, 'Vehicle Tag') #Car has no tag
-        self.assertEqual(kiaee._tag, 'Vehicle Tag') #Car has no tag
+        self.assertEqual(kiaee.getTag(), 'Vehicle Tag')  # Car has no tag
+        self.assertEqual(kiaee.tag, 'Vehicle Tag')  # Car has no tag
+        self.assertEqual(kiaee._tag, 'Vehicle Tag')  # Car has no tag
 
         self.assertEqual(myKiaee['brand'], 'My Vehicle Brand: KIA')
         self.assertEqual(myKiaee['turbo'], 'Car Turbo: No')
-        self.assertEqual(myKiaee.getTag(), 'MyVehicle Tag') #Car has no tag
-        self.assertEqual(myKiaee.tag, 'MyVehicle Tag') #Car has no tag
-        self.assertEqual(myKiaee._tag, 'MyVehicle Tag') #Car has no tag
-
+        self.assertEqual(myKiaee.getTag(), 'MyVehicle Tag')  # Car has no tag
+        self.assertEqual(myKiaee.tag, 'MyVehicle Tag')  # Car has no tag
+        self.assertEqual(myKiaee._tag, 'MyVehicle Tag')  # Car has no tag
 
         self.assertEqual(lionee['art'], 'Animal Art: Lion')
         self.assertEqual(lionee['brand'], 'Vehicle Brand: Nature')
-        self.assertEqual(lionee['turbo'], True) 
+        self.assertEqual(lionee['turbo'], True)
         self.assertEqual(lionee['pedals'], 'Twin Turbo')
-        self.assertEqual(lionee.getTag(), 'Animal Tag') #Car has no tag
-        self.assertEqual(lionee.tag, 'Animal Tag') #Car has no tag
-        self.assertEqual(lionee._tag, 'Animal Tag') #Car has no tag
-            
-    def testLegacy(self):
+        self.assertEqual(lionee.getTag(), 'Animal Tag')  # Car has no tag
+        self.assertEqual(lionee.tag, 'Animal Tag')  # Car has no tag
+        self.assertEqual(lionee._tag, 'Animal Tag')  # Car has no tag
+
+    def test_legacy(self):
 
         class Identity(Leaf):
             pass
@@ -263,30 +271,30 @@ class TestAs(unittest.TestCase):
             'a': 1,
             'b': 2,
             'c': 3,
-            }
+        }
         m = As(Identity)(m)
         m['c'] = 33
         m['d'] = 44
         assert m['c'] == 33
         assert m['d'] == 44
 
-        #iterate
+        # iterate
         m = {
             'a': 1,
             'b': 2,
             'c': 3,
-            }
+        }
         for key, val in Helpers.iterate(m):
             assert m[key] == val
 
-
-        #Level 1 acces
+        # Level 1 acces
         ps = As(Identity)({'xG': '1.1', 'name': 'test'})
         self.assertEqual(ps['xG'], '1.1')
         self.assertNotEqual(ps['xG'], float('1.1'))
         self.assertEqual(ps['name'], str('test'))
 
-        ps = As(Identity, XGAs, classBlacklist=[XGAs])({'xG': '1.1', 'name': 'test'})
+        ps = As(Identity, XGAs, classBlacklist=[XGAs])(
+            {'xG': '1.1', 'name': 'test'})
         self.assertEqual(ps['xG'], '1.1')
         self.assertNotEqual(ps['xG'], float('1.1'))
         self.assertEqual(ps['name'], str('test'))
@@ -301,7 +309,6 @@ class TestAs(unittest.TestCase):
         self.assertEqual(ps['xG'], float('1.1'))
         self.assertEqual(ps['name'], str('test'))
 
-if __name__ == '__main__':
-     unittest.main()
 
-    
+if __name__ == '__main__':
+    unittest.main()

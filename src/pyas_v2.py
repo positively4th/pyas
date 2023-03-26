@@ -1,6 +1,5 @@
-import itertools
-from collections import OrderedDict
 from xxhash import xxh64
+import ramda as R
 
 
 class T:
@@ -86,21 +85,22 @@ class Helpers:
         return Cache()
 
 
-def As(*args, classBlacklist:list|tuple = ()):
+def As(*args, classBlacklist: list | tuple = ()):
+
+    def flattenGrabFirst(mixins, blacklist):
+        return [key for key in [*dict.fromkeys(
+            R.reduce(lambda res, mixin: res + [mixin] + (
+                flattenGrabFirst(mixin.prototypes if hasattr(mixin, 'prototypes') else [], blacklist)), [])(mixins)
+        )] if not key in blacklist]
 
     def buildClass(classlist: list | tuple):
+
         name = '_'.join(c.__name__ for c in classlist)
         newClass = type(name, tuple(classlist), {})
         newClass.prototypes = classlist
         return newClass
 
-    _prototypes = list(OrderedDict.fromkeys(
-        itertools.filterfalse(lambda cls: cls in classBlacklist,
-                         itertools.chain(
-                             *[
-                                 [p] + (p.prototypes if hasattr(p, 'prototypes') else []) for p in (list(args) + [Root])
-                             ]
-                         ))))
+    _prototypes = flattenGrabFirst(list(args) + [Root], classBlacklist)
 
     classCacheKey = Root.cache.classCacheKey(_prototypes)
     cachedClass = Root.cache.getCachedAs(classCacheKey)
@@ -138,13 +138,12 @@ class Root:
     def instanceCacheKey(cls, row, prototypes):
         return Root.cache.instanceCacheKey(cls, row, prototypes)
 
-    #Todo: Remove, super() is correct method!.
+    # Todo: Remove, super() is correct method!.
     @property
     def prototype(self):
         return super()
 
     def __new__(cls, row: dict = {}):
-
 
         if (isinstance(row, cls)):
             return row
@@ -156,7 +155,7 @@ class Root:
         instanceCacheKey = cachedClass.instanceCacheKey(row, cls.prototypes)
         cachedInstnace = Root.cache.getCachedAs(instanceCacheKey)
         if cachedInstnace is not None:
-            #assert instanceCacheKey == cachedClass.instanceCacheKey(
+            # assert instanceCacheKey == cachedClass.instanceCacheKey(
             #        cachedInstnace.row, cachedInstnace.prototypes), 'Cache error!'
             return cachedInstnace
 
@@ -241,5 +240,3 @@ class Root:
 
     def keys(self):
         return self.row.keys()
-
-
