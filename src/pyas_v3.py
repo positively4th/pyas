@@ -2,7 +2,7 @@ from functools import wraps
 from xxhash import xxh64
 import ramda as R
 
-semanticVersion = (2, 0, 0)
+semanticVersion = (3, 0, 0)
 
 
 class PyasException(Exception):
@@ -12,20 +12,20 @@ class PyasException(Exception):
 class T:
 
     @staticmethod
-    def _simpleSet(val, key, row, *args, **kwargs):
-        row[key] = val
+    def _simpleSet(val, key, classee, *args, **kwargs):
+        classee.row[key] = val
 
     @staticmethod
     def defWrapper(defVal, get):
 
         @wraps(get)
-        def _get(val, key, row, *args, **kwargs):
+        def _get(val, key, classee, *args, **kwargs):
 
-            if key not in row:
+            if key not in classee:
                 assert val is None
-                row[key] = defVal(val, key, row)
-                return row[key]
-            return get(val, key, row, *args, **kwargs)
+                classee.row[key] = defVal(val, key, classee)
+                return classee.row[key]
+            return get(val, key, classee, *args, **kwargs)
 
         return (_get, T._simpleSet)
 
@@ -33,66 +33,66 @@ class T:
     def writableEmpty(get):
 
         @wraps(get)
-        def _get(val, key, row, *args, **kwargs):
+        def _get(val, key, classee, *args, **kwargs):
 
-            if key not in row:
+            if key not in classee:
                 assert val is None
-                row[key] = get(val, key, row, *args, **kwargs)
-                return row[key]
-            return get(val, key, row, *args, **kwargs)
+                classee.row[key] = get(val, key, classee, *args, **kwargs)
+                return classee.row[key]
+            return get(val, key, classee, *args, **kwargs)
 
         return (_get, T._simpleSet)
 
     @staticmethod
     def constant(constant):
 
-        def _get(val, key, row, *args, **kwargs):
+        def _get(val, key, classee, *args, **kwargs):
 
-            _constant = constant(val, key, row) if callable(
+            _constant = constant(val, key, classee) if callable(
                 constant) else constant
 
-            if key not in row:
-                row[key] = _constant
+            if key not in classee.row:
+                classee.row[key] = _constant
+            else:
+                if classee.row[key] != _constant:
+                    raise PyasException(
+                        'Wrong column {} constant value.'.format(key))
 
-            if row[key] != _constant:
-                raise PyasException(
-                    'Wrong column {} constant value.'.format(key))
+            return classee.row[key]
 
-            return row[key]
+        def _set(val, key, classee, *args, **kwargs):
 
-        def _set(val, key, row, *args, **kwargs):
-
-            _constant = constant(val, key, row) if callable(
+            _constant = constant(val, key, classee) if callable(
                 constant) else constant
 
             if val != _constant:
                 raise PyasException(
                     'Constant column {} can not be changed.'.format(key))
 
-            if key in row:
-                if row[key] != val:
+            if key in classee:
+                if classee[key] != val:
                     raise PyasException(
                         'Constant column {} can not be changed.'.format(key))
             else:
-                row[key] = val
+                classee.row[key] = val
 
         return (_get, _set)
 
     @ staticmethod
     def constantNotEmpty():
 
-        def _get(val, key, row, *args, **kwargs):
+        def _get(val, key, classee, *args, **kwargs):
 
-            if key not in row:
+            if key not in classee:
                 raise PyasException('Missing column {}.'.format(key))
-            return row[key]
+            return val
 
-        def _set(val, key, row, *args, **kwargs):
+        def _set(val, key, classee, *args, **kwargs):
 
-            if key not in row:
+            if key not in classee.row:
                 raise PyasException('Missing column {}.'.format(key))
 
-            if row[key] != val:
+            if classee.row[key] != val:
                 raise PyasException(
                     'Constant column {} can not be changed.'.format(key))
 
@@ -102,11 +102,11 @@ class T:
     def notEmpty(get):
 
         @ wraps(get)
-        def _get(val, key, row, *args, **kwargs):
+        def _get(val, key, classee, *args, **kwargs):
 
-            if key not in row:
+            if key not in classee:
                 raise PyasException('Missing column {}'.format(key))
-            return get(val, key, row, *args, **kwargs)
+            return get(val, key, classee, *args, **kwargs)
 
         return (_get, T._simpleSet)
 
@@ -114,14 +114,14 @@ class T:
     def virtual(get: callable) -> tuple:
 
         @ wraps(get)
-        def _get(val, key, row, *args, **kwargs):
+        def _get(val, key, classee, *args, **kwargs):
 
-            if key in row:
+            if key in classee:
                 raise PyasException(
                     'Virtual column {} has value.'.format(key))
-            return get(val, key, row, *args, **kwargs)
+            return get(val, key, classee, *args, **kwargs)
 
-        def _set(val, key, row, *args, **kwargs):
+        def _set(val, key, classee, *args, **kwargs):
             raise PyasException(
                 'Virtual column {} cannot be assigned.'.format(key))
 
@@ -324,7 +324,7 @@ class Root:
 
         T = (lambda val, *args: val) if T is None else T
         T = T[0] if isinstance(T, (list, tuple)) else T
-        return T(self.row[attr] if attr in self.row else None, attr, self.row)
+        return T(self.row[attr] if attr in self else None, attr, self)
 
     def __setitem__(self, key, val):
 
@@ -335,7 +335,7 @@ class Root:
         T = T[1] if isinstance(T, (list, tuple)) and len(T) >= 2 else None
         T = set if T is None else T
 
-        return T(val, key, self.row)
+        return T(val, key, self)
 
     def __len__(self):
         return len(self.row)

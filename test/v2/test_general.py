@@ -5,7 +5,7 @@ from src.pyas_v2 import Leaf
 from src.pyas_v2 import Helpers
 
 
-class TestAs(unittest.TestCase):
+class TestGeneral(unittest.TestCase):
 
     def test_implements(self):
 
