@@ -35,11 +35,11 @@ class T:
         @wraps(get)
         def _get(val, key, classee, *args, **kwargs):
 
-            if key not in classee:
+            if key not in classee.row:
                 assert val is None
                 classee.row[key] = get(val, key, classee, *args, **kwargs)
-                return classee.row[key]
-            return get(val, key, classee, *args, **kwargs)
+
+            return classee.row[key]
 
         return (_get, T._simpleSet)
 
@@ -116,7 +116,7 @@ class T:
         @ wraps(get)
         def _get(val, key, classee, *args, **kwargs):
 
-            if key in classee:
+            if key in classee.row:
                 raise PyasException(
                     'Virtual column {} has value.'.format(key))
             return get(val, key, classee, *args, **kwargs)
@@ -295,7 +295,11 @@ class Root:
         return '{}({})'.format(indent, str(self.row))
 
     def __contains__(self, key):
-        return key in self.row
+        if key in self.row:
+            return True
+        T = self.getTransformer(
+            key, self.__class__.prototypes)
+        return T is not None
 
     def __iter__(self):
 
@@ -324,7 +328,7 @@ class Root:
 
         T = (lambda val, *args: val) if T is None else T
         T = T[0] if isinstance(T, (list, tuple)) else T
-        return T(self.row[attr] if attr in self else None, attr, self)
+        return T(self.row[attr] if attr in self.row else None, attr, self)
 
     def __setitem__(self, key, val):
 

@@ -127,6 +127,19 @@ class T:
 
         return (_get, _set)
 
+    @staticmethod
+    def generator(get: callable) -> tuple:
+
+        @ wraps(get)
+        def _get(val, key, row, *args, **kwargs):
+            return get(val, key, row, *args, **kwargs)
+
+        def _set(val, key, row, *args, **kwargs):
+            raise PyasException(
+                'Virtual column {} cannot be assigned.'.format(key))
+
+        return (_get, _set)
+
 
 class Helpers:
 
