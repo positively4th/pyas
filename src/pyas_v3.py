@@ -1,8 +1,41 @@
+import itertools
 from functools import wraps
 from xxhash import xxh64
 import ramda as R
+from dill import dumps as dill_dumps
+from dill import loads as dill_loads
+from json import dumps
 
 semanticVersion = (3, 0, 0)
+
+
+
+
+class ReducerError(Exception):
+    pass
+class Reducers():
+
+
+
+    @staticmethod
+    def clone(statics : dict, key: str, val):
+        statics[key] = dill_loads(dill_dumps(val))
+
+
+    @staticmethod
+    def parentExtends(statics: dict, key: str, val):
+        if isinstance(val, dict):
+            statics[key] = {**dict((statics[key] if key in statics else {})), **val}
+        elif isinstance(val, set):
+            statics[key] = set(statics[key] if key in statics else []).union(val)
+        elif isinstance(val, tuple):
+            statics[key] = tuple(tuple(statics[key] if key in statics else ()) + val)
+        elif isinstance(val, list):
+            statics[key] =  list(statics[key] if key in statics else []) + val
+        elif isinstance(val, str):
+            statics[key] = str(statics[key] if key in statics else '') + val
+        else:
+            return (statics[key] if key in statics else None) + val
 
 
 class PyasException(Exception):
@@ -21,7 +54,7 @@ class T:
         @wraps(get)
         def _get(val, key, classee, *args, **kwargs):
 
-            if key not in classee:
+            if key not in classee.row:
                 assert val is None
                 classee.row[key] = defVal(val, key, classee)
                 return classee.row[key]
@@ -83,7 +116,7 @@ class T:
 
         def _get(val, key, classee, *args, **kwargs):
 
-            if key not in classee:
+            if key not in classee.row:
                 raise PyasException('Missing column {}.'.format(key))
             return val
 
@@ -99,18 +132,34 @@ class T:
         return (_get, _set)
 
     @ staticmethod
+    def alias(key0):
+
+        def _get(val, key, row, *args, **kwargs):
+
+            if key not in row:
+                raise PyasException(
+                    'Missing column {} for {}.'.format(key0, key))
+            return row[key]
+
+        def _set(val, key, row, *args, **kwargs):
+            return T._simpleSet(val, key0, row, *args, **kwargs)
+
+        return (_get, _set)
+
+    @ staticmethod
     def notEmpty(get):
 
-        @ wraps(get)
+        @wraps(get)
         def _get(val, key, classee, *args, **kwargs):
 
             if key not in classee:
                 raise PyasException('Missing column {}'.format(key))
+
             return get(val, key, classee, *args, **kwargs)
 
         return (_get, T._simpleSet)
 
-    @ staticmethod
+    @staticmethod
     def virtual(get: callable) -> tuple:
 
         @ wraps(get)
@@ -126,6 +175,34 @@ class T:
                 'Virtual column {} cannot be assigned.'.format(key))
 
         return (_get, _set)
+
+    # @staticmethod
+    # def async_virtual(get: callable) -> tuple:
+
+    #     @wraps(get)
+    #     async def _get(val, key, classee, *args, **kwargs):
+
+    #         if key in classee.row:
+    #             raise PyasException(
+    #                 'Virtual column {} has value.'.format(key))
+    #         return await get(val, key, classee, *args, **kwargs)
+
+    #     async def _set(val, key, classee, *args, **kwargs):
+    #         raise PyasException(
+    #             'Virtual column {} cannot be assigned.'.format(key))
+
+    #     return (_get, _set)
+
+    @staticmethod
+    def async_fallback(getter: callable) -> tuple:
+
+        async def _get(val, key, classee, *args, **kwargs):
+
+            if not key in classee.row:
+                classee.row[key] = await getter(val, key, classee, *args, **kwargs)
+            return classee.row[key]
+
+        return (_get, T._simpleSet)
 
 
 class Helpers:
@@ -176,7 +253,10 @@ class Helpers:
             def classCacheKey(prototypes):
                 key = 0
                 for p in prototypes:
-                    key += id(p)
+                    if isinstance(p, str):
+                        key += hash(p)
+                    else:
+                        key += id(p)
                 return key
 
             @classmethod
@@ -196,7 +276,7 @@ class Helpers:
         return Cache()
 
 
-def As(*args, classBlacklist: list | tuple = ()):
+def As(*args, staticReducers: dict = {}, classBlacklist: list | tuple = ()):
 
     def flattenGrabFirst(mixins, blacklist):
         return [key for key in [*dict.fromkeys(
@@ -204,25 +284,43 @@ def As(*args, classBlacklist: list | tuple = ()):
                 flattenGrabFirst(mixin.prototypes if hasattr(mixin, 'prototypes') else [], blacklist)), [])(mixins)
         )] if not key in blacklist]
 
-    def buildClass(classlist: list | tuple):
+    def buildClass(classlist: list | tuple, staticReducers:dict={}):
 
+        def updateStatics(statics: dict, cls, staticReducers: dict = {}):
+            for key, reducer in staticReducers.items():
+                if not hasattr(cls, key):
+                    continue
+                reducer(statics, key, getattr(cls, key))
+
+        _staticReducers = dict(itertools.chain(*map(dict.items, [
+            cls.staticReducers for cls in classlist if hasattr(cls, 'staticReducers')
+            ] +  [
+                staticReducers
+                ]
+            ))) 
         name = '_'.join(c.__name__ for c in classlist)
-        newClass = type(name, tuple(classlist), {})
-        newClass.prototypes = classlist
-        for cls in classlist:
+        statics = {}
+        for cls in reversed(classlist):
+            updateStatics(statics, cls, _staticReducers)
             if hasattr(cls, 'approveVersion') and not cls.approveVersion(semanticVersion):
                 raise PyasException(
                     'Version {} is not approved by {}.'.format(semanticVersion, cls))
+        newClass = type(name, tuple(classlist), {**statics})
+        newClass.prototypes = classlist
+
         return newClass
 
     _prototypes = flattenGrabFirst(list(args) + [Root], classBlacklist)
 
-    classCacheKey = Root.cache.classCacheKey(_prototypes)
+    classCacheKey = Root.cache.classCacheKey(_prototypes + [dumps({key: val.__name__ for key,val in staticReducers.items()}, sort_keys=True)])
     cachedClass = Root.cache.getCachedAs(classCacheKey)
     if cachedClass is None:
-        cachedClass = buildClass(_prototypes)
+        cachedClass = buildClass(_prototypes, staticReducers)
         Root.cache.setCachedAs(classCacheKey, cachedClass)
 
+    for p in _prototypes:
+        if hasattr(p, 'onNewClass'):
+            p.onNewClass(cachedClass)
     return cachedClass
 
 
@@ -234,7 +332,13 @@ class Leaf:
         return what in cls.prototypes
 
 
+class Statics:
+    pass
+
+
 class Root:
+
+    _version = semanticVersion
 
     columnSpecs = {}
     prototypes = []
@@ -244,6 +348,10 @@ class Root:
     @staticmethod
     def approveVersion(_semanticVersion: tuple):
         return _semanticVersion[0] == semanticVersion[0]
+
+    @staticmethod
+    def onNewClass(cls):
+        pass
 
     @classmethod
     def onNew(cls, self):
@@ -328,7 +436,8 @@ class Root:
 
         T = (lambda val, *args: val) if T is None else T
         T = T[0] if isinstance(T, (list, tuple)) else T
-        return T(self.row[attr] if attr in self.row else None, attr, self)
+        res = T(self.row[attr] if attr in self.row else None, attr, self)
+        return res
 
     def __setitem__(self, key, val):
 

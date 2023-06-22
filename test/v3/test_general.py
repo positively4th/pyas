@@ -245,6 +245,27 @@ class TestGeneral(unittest.TestCase):
         self.assertEqual(lionee.tag, 'Animal Tag')  # Car has no tag
         self.assertEqual(lionee._tag, 'Animal Tag')  # Car has no tag
 
+    def testOnNewClass(self):
+
+        class A(Leaf):
+            staticA = None
+
+            @staticmethod
+            def onNewClass(mixin):
+                mixin.staticA = A
+
+        class B(Leaf):
+            staticB = None
+
+            @staticmethod
+            def onNewClass(mixin):
+                mixin.staticB = B
+
+        AB = As(A, B)
+
+        self.assertEqual(A, AB.staticA)
+        self.assertEqual(B, AB.staticB)
+
     def test_legacy(self):
 
         class Identity(Leaf):
