@@ -9,29 +9,29 @@ from json import dumps
 semanticVersion = (3, 0, 0)
 
 
-
-
 class ReducerError(Exception):
     pass
+
+
 class Reducers():
 
-
-
     @staticmethod
-    def clone(statics : dict, key: str, val):
+    def clone(statics: dict, key: str, val):
         statics[key] = dill_loads(dill_dumps(val))
-
 
     @staticmethod
     def parentExtends(statics: dict, key: str, val):
         if isinstance(val, dict):
-            statics[key] = {**dict((statics[key] if key in statics else {})), **val}
+            statics[key] = {
+                **dict((statics[key] if key in statics else {})), **val}
         elif isinstance(val, set):
-            statics[key] = set(statics[key] if key in statics else []).union(val)
+            statics[key] = set(
+                statics[key] if key in statics else []).union(val)
         elif isinstance(val, tuple):
-            statics[key] = tuple(tuple(statics[key] if key in statics else ()) + val)
+            statics[key] = tuple(
+                tuple(statics[key] if key in statics else ()) + val)
         elif isinstance(val, list):
-            statics[key] =  list(statics[key] if key in statics else []) + val
+            statics[key] = list(statics[key] if key in statics else []) + val
         elif isinstance(val, str):
             statics[key] = str(statics[key] if key in statics else '') + val
         else:
@@ -176,6 +176,19 @@ class T:
 
         return (_get, _set)
 
+    @staticmethod
+    def generator(get: callable) -> tuple:
+
+        @ wraps(get)
+        def _get(val, key, row, *args, **kwargs):
+            return get(val, key, row, *args, **kwargs)
+
+        def _set(val, key, row, *args, **kwargs):
+            raise PyasException(
+                'Virtual column {} cannot be assigned.'.format(key))
+
+        return (_get, _set)
+
     # @staticmethod
     # def async_virtual(get: callable) -> tuple:
 
@@ -284,7 +297,7 @@ def As(*args, staticReducers: dict = {}, classBlacklist: list | tuple = ()):
                 flattenGrabFirst(mixin.prototypes if hasattr(mixin, 'prototypes') else [], blacklist)), [])(mixins)
         )] if not key in blacklist]
 
-    def buildClass(classlist: list | tuple, staticReducers:dict={}):
+    def buildClass(classlist: list | tuple, staticReducers: dict = {}):
 
         def updateStatics(statics: dict, cls, staticReducers: dict = {}):
             for key, reducer in staticReducers.items():
@@ -294,10 +307,10 @@ def As(*args, staticReducers: dict = {}, classBlacklist: list | tuple = ()):
 
         _staticReducers = dict(itertools.chain(*map(dict.items, [
             cls.staticReducers for cls in classlist if hasattr(cls, 'staticReducers')
-            ] +  [
-                staticReducers
-                ]
-            ))) 
+        ] + [
+            staticReducers
+        ]
+        )))
         name = '_'.join(c.__name__ for c in classlist)
         statics = {}
         for cls in reversed(classlist):
@@ -312,7 +325,8 @@ def As(*args, staticReducers: dict = {}, classBlacklist: list | tuple = ()):
 
     _prototypes = flattenGrabFirst(list(args) + [Root], classBlacklist)
 
-    classCacheKey = Root.cache.classCacheKey(_prototypes + [dumps({key: val.__name__ for key,val in staticReducers.items()}, sort_keys=True)])
+    classCacheKey = Root.cache.classCacheKey(
+        _prototypes + [dumps({key: val.__name__ for key, val in staticReducers.items()}, sort_keys=True)])
     cachedClass = Root.cache.getCachedAs(classCacheKey)
     if cachedClass is None:
         cachedClass = buildClass(_prototypes, staticReducers)
