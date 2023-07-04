@@ -1,4 +1,5 @@
 import itertools
+import inspect
 from functools import wraps
 from xxhash import xxh64
 import ramda as R
@@ -179,9 +180,9 @@ class T:
     @staticmethod
     def generator(get: callable) -> tuple:
 
-        @ wraps(get)
-        def _get(val, key, row, *args, **kwargs):
-            return get(val, key, row, *args, **kwargs)
+        @wraps(get)
+        def _get(val, key, classee, *args, **kwargs):
+            return get(val, key, classee, *args, **kwargs)
 
         def _set(val, key, row, *args, **kwargs):
             raise PyasException(
@@ -205,6 +206,17 @@ class T:
     #             'Virtual column {} cannot be assigned.'.format(key))
 
     #     return (_get, _set)
+
+    @staticmethod
+    def fallback(getter: callable) -> tuple:
+
+        def _get(val, key, classee, *args, **kwargs):
+
+            if not key in classee.row:
+                classee.row[key] = getter(val, key, classee, *args, **kwargs)
+            return classee.row[key]
+
+        return (_get, T._simpleSet)
 
     @staticmethod
     def async_fallback(getter: callable) -> tuple:
@@ -289,7 +301,7 @@ class Helpers:
         return Cache()
 
 
-def As(*args, staticReducers: dict = {}, classBlacklist: list | tuple = ()):
+def As(*args, staticReducers: dict = {}, classBlacklist: list | tuple = (), noCache=False):
 
     def flattenGrabFirst(mixins, blacklist):
         return [key for key in [*dict.fromkeys(
@@ -328,13 +340,16 @@ def As(*args, staticReducers: dict = {}, classBlacklist: list | tuple = ()):
     classCacheKey = Root.cache.classCacheKey(
         _prototypes + [dumps({key: val.__name__ for key, val in staticReducers.items()}, sort_keys=True)])
     cachedClass = Root.cache.getCachedAs(classCacheKey)
-    if cachedClass is None:
+    if noCache or cachedClass is None:
         cachedClass = buildClass(_prototypes, staticReducers)
-        Root.cache.setCachedAs(classCacheKey, cachedClass)
 
-    for p in _prototypes:
-        if hasattr(p, 'onNewClass'):
-            p.onNewClass(cachedClass)
+        for p in _prototypes:
+            if hasattr(p, 'onNewClass'):
+                p.onNewClass(cachedClass)
+
+        if not noCache:
+            Root.cache.setCachedAs(classCacheKey, cachedClass)
+
     return cachedClass
 
 
@@ -386,6 +401,9 @@ class Root:
 
     def __new__(cls, row: dict = {}):
 
+        def isStaticMethod(cls: object, method: str):
+            return isinstance(inspect.getattr_static(cls, method), staticmethod)
+
         if (isinstance(row, cls)):
             return row
 
@@ -405,7 +423,9 @@ class Root:
         instance.row = row
         for p in reversed(cls.prototypes):
             if hasattr(p, 'onNew'):
-                p.onNew(instance)
+                p.onNew(cachedClass, instance) \
+                    if isStaticMethod(p, 'onNew') \
+                    else p.onNew(instance)
         Root.cache.setCachedAs(instanceCacheKey, instance)
 
         return instance
