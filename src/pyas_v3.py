@@ -323,7 +323,7 @@ def As(*args, staticReducers: dict = {}, classBlacklist: list | tuple = (), noCa
             staticReducers
         ]
         )))
-        name = '_'.join(c.__name__ for c in classlist)
+        name = '_'.join(c.__name__ + '_' + c.__module__ for c in classlist)
         statics = {}
         for cls in reversed(classlist):
             updateStatics(statics, cls, _staticReducers)
