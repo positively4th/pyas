@@ -267,7 +267,7 @@ class Helpers:
 
             @staticmethod
             def instanceCacheKey(cls, row, prototypes):
-                key = xxh64()
+                key = xxh64(seed=0)
                 key.update(cls.__name__)
                 key.update(str(id(row)))
                 for p in prototypes:
@@ -323,7 +323,8 @@ def As(*args, staticReducers: dict = {}, classBlacklist: list | tuple = (), noCa
             staticReducers
         ]
         )))
-        name = '_'.join(c.__name__ + '_' + c.__module__ for c in classlist)
+        name = '_'.join(c.__name__ + '@' +
+                        c.__module__.split('.')[-1] for c in classlist)
         statics = {}
         for cls in reversed(classlist):
             updateStatics(statics, cls, _staticReducers)
