@@ -148,7 +148,7 @@ class T:
 
         return (_get, _set)
 
-    @ staticmethod
+    @staticmethod
     def notEmpty(get):
 
         @wraps(get)
