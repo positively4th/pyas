@@ -1,7 +1,8 @@
+from __future__ import annotations
 import itertools
 import inspect
 from functools import wraps
-from xxhash import xxh64
+from xxhash import xxh64, xxh32
 import ramda as R
 from dill import dumps as dill_dumps
 from dill import loads as dill_loads
@@ -378,6 +379,23 @@ class Root:
     @staticmethod
     def approveVersion(_semanticVersion: tuple):
         return _semanticVersion[0] == semanticVersion[0]
+
+    @classmethod
+    def classId(cls) -> str:
+
+        if isinstance(cls, Root):
+            return cls.classId()
+        return xxh64(cls.__name__, seed=0).hexdigest()
+
+    @classmethod
+    def informativeClassId(cls) -> str:
+
+        if isinstance(cls, Root):
+            return cls.informativeClassName()
+        name = cls.__name__
+        if len(name) > 16:
+            name = name[0:12] + '...'
+        return '{}_{}'.format(name, xxh32(cls.__name__, seed=0).hexdigest())
 
     @staticmethod
     def onNewClass(cls):
